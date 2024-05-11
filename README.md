@@ -1,1 +1,1 @@
-# B3StockPortfoliopOptimizer
+# B3StockPortfolioOptimizer
