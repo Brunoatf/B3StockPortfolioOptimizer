@@ -15,7 +15,7 @@ using namespace std;
 class Chromosome {
 
     public:
-        
+
         int chromosome_length;
         double minimum_stock_proportion;
         double maximum_stock_proportion;
@@ -23,7 +23,7 @@ class Chromosome {
         double fitness;
         vector<int> selected_stocks;
         vector<double> stock_proportions;
-    
+
         /**
          * @brief Construtor que inicializa o cromossomo.
          * @param num_available_stocks Número de ações disponíveis.
@@ -49,7 +49,7 @@ class Chromosome {
             maximum_stock_proportion(maximum_stock_proportion),
             portfolio_size(portfolio_size) 
         {
-        
+
             if (selected_stocks.empty()) {
                 selected_stocks.resize(chromosome_length);
                 for (int &stock : selected_stocks) {
@@ -57,7 +57,7 @@ class Chromosome {
                 }
             }
             this->selected_stocks = selected_stocks;
-    
+
             if (stock_proportions.empty()) {
                 stock_proportions.resize(chromosome_length);
                 for (double &proportion : stock_proportions) {
@@ -65,14 +65,14 @@ class Chromosome {
                 }
             }
             this->stock_proportions = stock_proportions;
-    
+
             // Inicialização contando apenas soluções válidas:
             // Talvez seja interessante inicializar com soluções inválidas para explorar o espaço de busca
             repair(portfolio_size);
-    
+
             fitness = compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient);
         }
-    
+
         /**
          * @brief Obtém o comprimento do cromossomo.
          * @return O comprimento do cromossomo.
@@ -80,7 +80,7 @@ class Chromosome {
         int length() const {
             return chromosome_length;
         }
-        
+
         /*
         * @brief Faz a mutação de um gene do cromossomo
         * @param gene O gene que deseja-se aplicar uma mutação
@@ -96,22 +96,22 @@ class Chromosome {
                 stock_proportions[gene] = dis(gen);
             }
         }
-    
+
         /**
          * @brief Repara o cromossomo para garantir que ele é válido.
          * @param portfolio_size Tamanho do portfólio.
          */
         void repair(int portfolio_size) {
-        
+
             // Primeiramente ajustar o tamanho do portfolio:
-    
+
             int selected_stocks_count = accumulate(selected_stocks.begin(), selected_stocks.end(), 0);
-    
+
             // Se o número de ações selecionadas for maior que o tamanho do portfolio, remover as ações de menor proporção que já foram selecionadas:
             if (selected_stocks_count > portfolio_size) {
                 auto sorted_proportions = stock_proportions;
                 sort(sorted_proportions.begin(), sorted_proportions.end());
-    
+
                 for (int i = 0; i < selected_stocks_count - portfolio_size; ++i) {
                     auto it = find(stock_proportions.begin(), stock_proportions.end(), sorted_proportions[i]);
                     int stock_index = distance(stock_proportions.begin(), it);
@@ -124,23 +124,23 @@ class Chromosome {
             else if (selected_stocks_count < portfolio_size) {
                 auto sorted_proportions = stock_proportions;
                 sort(sorted_proportions.rbegin(), sorted_proportions.rend());
-    
+
                 for (int i = 0; i < portfolio_size - selected_stocks_count; ++i) {
                     auto it = find(stock_proportions.begin(), stock_proportions.end(), sorted_proportions[i]);
                     int stock_index = distance(stock_proportions.begin(), it);
                     selected_stocks[stock_index] = 1;
                 }
             }
-    
+
             // Em seguida ajustar as proporções das ações selecionadas:
-    
+
             // Ações não escolhidas recebem proporção 0:
             for (int i = 0; i < chromosome_length; ++i) {
                 if (selected_stocks[i] == 0) {
                     stock_proportions[i] = 0.0;
                 }
             }
-    
+
             // Aplica-se a restrição de proporção mínima:
             double unnormalized_weight_sum = accumulate(stock_proportions.begin(), stock_proportions.end(), 0.0);
             double minimum_new_weight_sum = minimum_stock_proportion * portfolio_size;
@@ -152,7 +152,7 @@ class Chromosome {
                     stock_proportions[i] = minimum_stock_proportion + (stock_proportions[i] / unnormalized_weight_sum) * (1 - minimum_new_weight_sum);
                 }
             }
-    
+
             // Restrição de proporção máxima descrita no arquivo upper_bound_reference:
             set<int> over_bound_stocks;
             set<int> initial_chosen_stocks;
@@ -161,7 +161,7 @@ class Chromosome {
                     initial_chosen_stocks.insert(i);
                 }
             }
-    
+
             // Enquanto houver alguma ação em initial_chosen_stocks que esteja acima do limite de proporção, ajustar as proporções:
             while (true) {
                 int remaining_over_bound = 0;
@@ -171,7 +171,7 @@ class Chromosome {
                     }
                 }
                 if (remaining_over_bound == 0) break;
-    
+
                 // calcula a porcentagem total ainda presente em initial_chosen_stocks
                 // ações com porcentagem acima do permitido passam pra over_bound_stocks com proporção corrigida para a máxima, 1 por iteração
                 double total_percentage = 0.0;
@@ -185,17 +185,17 @@ class Chromosome {
                         initial_chosen_stocks.erase(stock);
                     }
                 }
-    
+
                 // Calcula o quanto daria pra distribuir tomando que todas as stocks têm pelo menos a proporção mínima
                 // E também que todas as em over_bound_stocks têm a proporção máxima
                 double free_percentage = 1 - (initial_chosen_stocks.size() * minimum_stock_proportion + maximum_stock_proportion * over_bound_stocks.size());
-    
+
                 for (auto stock : initial_chosen_stocks) {
                     stock_proportions[stock] = minimum_stock_proportion + (stock_proportions[stock] / total_percentage) * free_percentage;
                 }
             }
         }
-    
+
         /**
          * @brief Calcula e retorna o fitness do cromossomo.
          * @param expected_returns Vetor de inteiros com os retornos esperados de cada ação.
@@ -209,13 +209,13 @@ class Chromosome {
             double risk_tolerance_coefficient //lambda na fórmula
         ) {
             repair(portfolio_size);
-    
+
             // calcular o fitness com base nos dados históricos de cada ação
             // o fitness será (1 - lambda) * retorno do portfolio - lambda * risco do portfolio
             // onde lambda é o coeficiente de tolerância ao risco
             // o retorno do portfolio é a média dos retornos de cada ação ponderada pela proporção de cada ação no portfolio
             // o risco do portfolio é a soma das covariâncias dos retornos de cada par de ações ponderada pela proporção de cada ação no portfolio
-            
+
             double fitness;
             for (int i = 0; i < chromosome_length; i++) {
                 if (selected_stocks[i]) {
@@ -227,26 +227,8 @@ class Chromosome {
                     }
                 }
             }
-            
+
             return fitness;
-        }
-    
-        /**
-         * @brief Calcula o retorno do portfólio.
-         * @return O valor do retorno do portfólio.
-         */
-        double compute_portfolio_return() {
-            // Implementar o cálculo do retorno do portfólio
-            return 0.0;
-        }
-    
-        /**
-         * @brief Calcula o risco do portfólio.
-         * @return O valor do risco do portfólio.
-         */
-        double compute_portfolio_risk() {
-            // Implementar o cálculo do risco do portfólio
-            return 0.0;
         }
 
 };
