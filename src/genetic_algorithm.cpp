@@ -36,24 +36,28 @@ class Chromosome {
         Chromosome(
             int chromosome_length,
             int portfolio_size,
-            double minimum_stock_proportion = 0.05,
-            double maximum_stock_proportion = 0.5,
+            double minimum_stock_proportion,
+            double maximum_stock_proportion,
+            const vector<double> &expected_returns,
+            const vector<vector<double>> &cov_matrix,
+            double risk_tolerance_coefficient,
             vector<int> selected_stocks = {},
-            vector<double> stock_proportions = {},
-            vector<int> &expected_returns,
-            vector<vector<int>> &cov_matrix,
-            double risk_tolerance_coefficient
+            vector<double> stock_proportions = {}
         ) : 
             chromosome_length(chromosome_length),
             minimum_stock_proportion(minimum_stock_proportion),
             maximum_stock_proportion(maximum_stock_proportion),
-            portfolio_size(portfolio_size) 
-        {
+            portfolio_size(portfolio_size)
+        {   
+
+            random_device rd;
+            mt19937 gen(rd());
+            bernoulli_distribution dis(0.5);
 
             if (selected_stocks.empty()) {
                 selected_stocks.resize(chromosome_length);
                 for (int &stock : selected_stocks) {
-                    stock = rand() % 2;
+                    stock = dis(gen);
                 }
             }
             this->selected_stocks = selected_stocks;
@@ -91,7 +95,7 @@ class Chromosome {
             } 
             else {
                 uniform_real_distribution<> dis(0.0, 1.0);
-                mt19937 gen(random_device());
+                mt19937 gen(random_device{}());
                 selected_stocks[gene] = 1;
                 stock_proportions[gene] = dis(gen);
             }
@@ -176,7 +180,8 @@ class Chromosome {
                 // ações com porcentagem acima do permitido passam pra over_bound_stocks com proporção corrigida para a máxima, 1 por iteração
                 double total_percentage = 0.0;
                 bool moved_to_upper_bound = false;
-                for (auto stock : initial_chosen_stocks) {
+                set<int> initial_chosen_stocks_copy = initial_chosen_stocks;
+                for (auto stock : initial_chosen_stocks_copy) {
                     total_percentage += stock_proportions[stock];
                     if (!moved_to_upper_bound && stock_proportions[stock] > maximum_stock_proportion) {
                         moved_to_upper_bound = true;
@@ -204,8 +209,8 @@ class Chromosome {
          * @return O valor do fitness do cromossomo.
          */
         double compute_fitness(
-            vector<int> expected_returns,
-            vector<vector<int>> cov_matrix,
+            vector<double> expected_returns,
+            vector<vector<double>> cov_matrix,
             double risk_tolerance_coefficient //lambda na fórmula
         ) {
             repair(portfolio_size);
@@ -216,19 +221,21 @@ class Chromosome {
             // o retorno do portfolio é a média dos retornos de cada ação ponderada pela proporção de cada ação no portfolio
             // o risco do portfolio é a soma das covariâncias dos retornos de cada par de ações ponderada pela proporção de cada ação no portfolio
 
-            double fitness;
+            double return_sum = 0.0;
+            double risk_sum = 0.0;
+
             for (int i = 0; i < chromosome_length; i++) {
                 if (selected_stocks[i]) {
-                    fitness += stock_proportions[i] * expected_returns[i] * risk_tolerance_coefficient;
+                    return_sum += stock_proportions[i] * expected_returns[i];
                     for (int j = 0; j < chromosome_length; j++) {
                         if (selected_stocks[j]) {
-                            fitness += (1-risk_tolerance_coefficient) * stock_proportions[i] * stock_proportions[j] * cov_matrix[i][j];
+                            risk_sum += stock_proportions[i] * stock_proportions[j] * cov_matrix[i][j];
                         }
                     }
                 }
             }
 
-            return fitness;
+            return risk_tolerance_coefficient * return_sum - (1 - risk_tolerance_coefficient) * risk_sum;
         }
 
 };
@@ -258,7 +265,6 @@ class GeneticAlgorithm {
             int population_size,
             double mutation_rate,
             double crossover_rate,
-            string crossover_type = "uniform",
             int elitism_count,
             int tournament_size,
             int portfolio_size,
@@ -266,8 +272,9 @@ class GeneticAlgorithm {
             double risk_tolerance_coefficient,
             double minimum_stock_proportion,
             double maximum_stock_proportion,
-            vector<int> expected_returns,
-            vector<vector<int>> cov_matrix
+            vector<double> expected_returns,
+            vector<vector<double>> cov_matrix,
+            string crossover_type = "uniform"
         ) : population_size(population_size),
             mutation_rate(mutation_rate),
             crossover_rate(crossover_rate),
@@ -287,22 +294,36 @@ class GeneticAlgorithm {
         * @brief Sobrecarga do operador de chamada de função para executar o algoritmo genético.
         * @param num_generations Número de gerações a serem executadas.
         */
-        void operator()(int num_generations) {
+        Chromosome operator()(int num_generations) {
             vector<Chromosome> population = init_population();
+
+            cout << "Starting iterations" << endl;
+            Chromosome solution = get_best_chromosome(population);
 
             for (int i = 0; i < num_generations; ++i) {
 
                 auto parents = select_chromosomes(population);
+
                 population = crossover_population(parents);
-                population = mutate_population(population);
+
+                mutate_population(population);
+
                 population = repair_population(population);
 
                 double population_fitness = eval_population(population);
-                cout << "Generation " << i << " mean fitness: " << population_fitness << endl;
 
                 auto best_chromosome = get_best_chromosome(population);
-                cout << "Generation " << i << " best chromosome fitness: " << best_chromosome.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient) << endl;
+                if (best_chromosome.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient) > solution.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient)) {
+                    solution = best_chromosome;
+                }
+            
+                if (i % 10 == 0) {
+                    cout << "Generation " << i << " best chromosome fitness: " << best_chromosome.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient) << endl;
+                }
+            
             }
+
+            return solution;
         }
 
     private:
@@ -316,8 +337,8 @@ class GeneticAlgorithm {
         double risk_tolerance_coefficient;
         double minimum_stock_proportion;
         double maximum_stock_proportion;
-        vector<int> expected_returns;
-        vector<vector<int>> cov_matrix;
+        vector<double> expected_returns;
+        vector<vector<double>> cov_matrix;
         string crossover_type;
 
         /**
@@ -326,8 +347,9 @@ class GeneticAlgorithm {
         */
         vector<Chromosome> init_population() {
             vector<Chromosome> population;
-            for (int i = 0; i < population_size; ++i) {
-                population.emplace_back(num_available_stocks, portfolio_size, minimum_stock_proportion, maximum_stock_proportion);
+            for (int i = 0; i < population_size; i++) {
+                Chromosome chromosome(num_available_stocks, portfolio_size, minimum_stock_proportion, maximum_stock_proportion, expected_returns, cov_matrix, risk_tolerance_coefficient);
+                population.push_back(chromosome);
             }
             return population;
         }
@@ -357,22 +379,19 @@ class GeneticAlgorithm {
             return population_fitness / population_size;
         }
 
-        bool increasing_compare_func(Chromosome& a, Chromosome& b) {
-            return a.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient) < b.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient);
-        }
-
-        bool decreasing_compare_func(Chromosome& a, Chromosome& b) {
-            return a.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient) < b.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient);
-        }
-
         /**
         * @brief Retorna o melhor cromossomo da população.
         * @param population Um vetor de cromossomos representando a população.
         * @return O cromossomo com o melhor fitness.
         */
-        Chromosome get_best_chromosome(vector<Chromosome>& population) {
-            auto best_it = max_element(population.begin(), population.end(), increasing_compare_func);
-            return *best_it;
+        Chromosome get_best_chromosome(std::vector<Chromosome>& population) {
+            Chromosome best = population[0];
+            for (int i = 1; i < population.size(); i++) {
+                if (population[i].compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient) > best.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient)) {
+                    best = population[i];
+                }
+            }
+            return best;
         }
 
         /**
@@ -383,14 +402,14 @@ class GeneticAlgorithm {
         vector<Chromosome> crossover_population(vector<Chromosome>& population) {
             
             vector<Chromosome> new_population;
-            for (int i = 0; i < population_size - 1; i++) {
+            for (int i = 0; i < population_size - 1; i = i + 2) {
                 Chromosome parent1 = population[i];
                 Chromosome parent2 = population[i+1];
                 if (crossover_type == "uniform") {
                     bernoulli_distribution b(0.5);
-                    mt19937 generator(random_device());
+                    mt19937 generator(random_device{}());
                     int value;
-                    for (int stock = 0; stock < num_available_stocks; i++) {
+                    for (int stock = 0; stock < num_available_stocks; stock++) {
                         value = b(generator);
 
                         // Se obtivermos 1, então ocorre a troca. Senão, mantém-se como está.
@@ -404,7 +423,11 @@ class GeneticAlgorithm {
                 new_population.push_back(parent1);
                 new_population.push_back(parent2);
             }
-            
+
+            if (population_size % 2 == 1) {
+                new_population.push_back(population[population_size-1]);
+            }
+
             // Implementar outros crossovers
             
             return new_population;
@@ -416,9 +439,9 @@ class GeneticAlgorithm {
         * @param population Um vetor de cromossomos representando a população.
         * @return Um vetor de cromossomos resultantes da mutação.
         */
-        vector<Chromosome> mutate_population(vector<Chromosome>& population) {
+        void mutate_population(vector<Chromosome>& population) {
             bernoulli_distribution b(mutation_rate);
-            mt19937 generator(random_device());
+            mt19937 generator(random_device{}());
             for (Chromosome &indiviual : population) {
                 for (int i = 0; i < num_available_stocks; i++) {
                     if (b(generator)) {
@@ -426,6 +449,10 @@ class GeneticAlgorithm {
                     }
                 }
             }
+        }
+
+        static bool decreasing_compare_func(Chromosome a, Chromosome b, vector<double> &expected_returns, vector<vector<double>> &cov_matrix, double &risk_tolerance_coefficient) {
+            return a.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient) > b.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient);
         }
 
         /**
@@ -440,13 +467,15 @@ class GeneticAlgorithm {
             sort(
                 population.begin(),
                 population.end(),
-                decreasing_compare_func
+                [this](Chromosome a, Chromosome b) {
+                    return decreasing_compare_func(a, b, expected_returns, cov_matrix, risk_tolerance_coefficient);
+                }
             );
 
             for (int i = 0; i < elitism_count; ++i) {
                 parents.push_back(population[i]);
             }
-            
+
             for (int i = 0; i < population_size - elitism_count; i++) {
                 shuffle(population.begin() + elitism_count, population.end(), mt19937{ random_device{}() });
                 vector<Chromosome> tournament;
@@ -462,5 +491,58 @@ class GeneticAlgorithm {
 };
 
 int main() {
-    
+
+    vector<double> expected_returns;
+    vector<vector<double>> cov_matrix(100, vector<double>(100, 0));
+
+    //montar expected_returns e cov_matrix com valores reais
+    //para testes, usei valores aleatórios mesmo
+
+    //random number generator between 0 and 1
+    mt19937 generator(random_device{}());
+    uniform_real_distribution<double> distribution(0.0, 1.0);
+
+    for (int i = 0; i < 100; i++) {
+        for (int j = 0; j < 100; j++) {
+            cov_matrix[i][j] = distribution(generator);
+        }
+    }
+
+    for (int i = 0; i < 100; i++) {
+        expected_returns.push_back(distribution(generator));
+    }
+
+    /**
+    * @brief Construtor que inicializa os parâmetros do algoritmo genético.
+    * @param population_size Tamanho da população.
+    * @param mutation_rate Taxa de mutação.
+    * @param crossover_rate Taxa de crossover.
+    * @param elitism_count Número de cromossomos de elitismo.
+    * @param tournament_size Tamanho do torneio.
+    * @param portfolio_size Tamanho do portfólio.
+    * @param num_available_stocks Número de ações disponíveis.
+    * @param risk_tolerance_coefficient Coeficiente de tolerância ao risco.
+    * @param minimum_stock_proportion Proporção mínima de uma ação no portfólio.
+    * @param maximum_stock_proportion Proporção máxima de uma ação no portfólio.
+    * @param expected_returns Vetor de inteiros com os retornos esperados de cada ação.
+    * @param cov_matrix Matriz de covariância dos retornos das ações.
+    */
+    GeneticAlgorithm ga(
+        100,
+        0.005,
+        0.1,
+        20,
+        3,
+        20,
+        100,
+        0.5,
+        0.05,
+        0.5,
+        expected_returns,
+        cov_matrix
+    );
+
+
+    Chromosome solution = ga(1000);
+
 }
