@@ -7,6 +7,8 @@
 
 using namespace std;
 
+const int NUM_STOCKS = 100;
+const double ALPHA = 0.2;
 
 /**
  * @class Chromosome
@@ -418,7 +420,35 @@ class GeneticAlgorithm {
                             swap(parent1.stock_proportions[stock], parent2.stock_proportions[stock]);
                         }
                     }
-                    
+                }
+                else if(crossover_type == "flat") {
+                    mt19937 generator(random_device{}());
+                    for(int stock = 0; stock < num_available_stocks; stock++) {
+                        double lower_bound = min(parent1.stock_proportions[stock], parent2.stock_proportions[stock]);
+                        double upper_bound = max(parent1.stock_proportions[stock], parent2.stock_proportions[stock]);
+                        uniform_real_distribution<> d(lower_bound, upper_bound);
+                        value1 = d(generator);
+                        value2 = d(generator);
+                        if(value1 > 0) parent1.selected_stocks[stock] = 1;
+                        if(value2 > 0) parent2.selected_stocks[stock] = 1;
+                        parent1.stock_proportions[stock] = value1;
+                        parent2.stock_proportions[stock] = value2;
+                    }
+                }
+                else if(crossover_type == "blend") {
+                    mt19937 generator(random_device{}());
+                    for(int stock = 0; stock < num_available_stocks; stock++) {
+                        double blend_interval_size = ALPHA * abs(parent1.stock_proportions[stock] - parent2.stock_proportions[stock]);
+                        double lower_bound = min(parent1.stock_proportions[stock], parent2.stock_proportions[stock]) - blend_interval_size;
+                        double upper_bound = max(parent1.stock_proportions[stock], parent2.stock_proportions[stock]) + blend_interval_size;
+                        uniform_real_distribution<> d(lower_bound, upper_bound);
+                        value1 = d(generator);
+                        value2 = d(generator);
+                        if(value1 > 0) parent1.selected_stocks[stock] = 1;
+                        if(value2 > 0) parent2.selected_stocks[stock] = 1;
+                        parent1.stock_proportions[stock] = value1;
+                        parent2.stock_proportions[stock] = value2;
+                    }
                 }
                 new_population.push_back(parent1);
                 new_population.push_back(parent2);
@@ -502,13 +532,13 @@ int main() {
     mt19937 generator(random_device{}());
     uniform_real_distribution<double> distribution(0.0, 1.0);
 
-    for (int i = 0; i < 100; i++) {
-        for (int j = 0; j < 100; j++) {
+    for (int i = 0; i < NUM_STOCKS; i++) {
+        for (int j = 0; j < NUM_STOCKS; j++) {
             cov_matrix[i][j] = distribution(generator);
         }
     }
 
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < NUM_STOCKS; i++) {
         expected_returns.push_back(distribution(generator));
     }
 
@@ -534,7 +564,7 @@ int main() {
         20,
         3,
         20,
-        100,
+        NuM_STOCKS,
         0.5,
         0.05,
         0.5,
