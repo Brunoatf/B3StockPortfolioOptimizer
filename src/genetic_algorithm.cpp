@@ -114,15 +114,28 @@ class Chromosome {
 
             // Se o número de ações selecionadas for maior que o tamanho do portfolio, remover as ações de menor proporção que já foram selecionadas:
             if (selected_stocks_count > portfolio_size) {
-                auto sorted_proportions = stock_proportions;
+                vector <pair <double, int> > sorted_proportions;
+                for(int i = 0; i < chromosome_length; ++i) {
+                    sorted_proportions.push_back({stock_proportions[i], i});
+                }
                 sort(sorted_proportions.begin(), sorted_proportions.end());
 
                 for (int i = 0; i < selected_stocks_count - portfolio_size; ++i) {
-                    auto it = find(stock_proportions.begin(), stock_proportions.end(), sorted_proportions[i]);
-                    int stock_index = distance(stock_proportions.begin(), it);
-                    selected_stocks[stock_index] = 0;
-                    stock_proportions[stock_index] = 0.0;
+                    if(selected_stocks[sorted_proportions[i].second] == 0) {
+                        selected_stocks_count++;
+                        continue;
+                    }
+                    selected_stocks[sorted_proportions[i].second] = 0;
+                    stock_proportions[sorted_proportions[i].second] = 0.0;
                 }
+                //cout << selected_stocks_count << '\n';
+                int qt = 0;
+                for (int i = 0; i < chromosome_length; ++i) {
+                    if (selected_stocks[i] == 1) {
+                        qt++;
+                    }
+                }
+                if(qt != portfolio_size) cout << "oi " << qt << '\n';
             }
             // Se o número de ações selecionadas for menor que o tamanho do portfolio, adicionar as ações de maior proporção que ainda não foram selecionadas:
             // Aqui talvez seja interessante permitir que o algoritmo monte portfólios com menos ações. Vai que o melhor portfólio não tem exatamente o tamanho do portfolio_size
@@ -599,7 +612,7 @@ int main() {
 
     double real_return = 0;
     for(int i = 0; i < num_stocks; i++) {
-        real_return += solution.stock_proportions[i] * final_returns[i];
+        real_return += solution.stock_proportions[i] * final_returns[i] * solution.selected_stocks[i];
     }
     cout << "retorno uniform crossover: "<< real_return << '\n';
     
@@ -621,11 +634,14 @@ int main() {
 
     Chromosome solution_flat = ga_flat(1000);
 
+    double sum = 0;
     real_return = 0;
     for(int i = 0; i < num_stocks; i++) {
-        real_return += solution_flat.stock_proportions[i] * final_returns[i];
+        real_return += solution_flat.stock_proportions[i] * final_returns[i] * solution_flat.selected_stocks[i];
+        sum += solution_flat.stock_proportions[i] * solution_flat.selected_stocks[i];
     }
     cout << "retorno flat crossover: "<< real_return << '\n';
+    cout << sum << '\n';
 
     GeneticAlgorithm ga_blend(
         100,
@@ -646,11 +662,14 @@ int main() {
 
     Chromosome solution_blend = ga_blend(1000);
 
+    sum = 0;
     real_return = 0;
     for(int i = 0; i < num_stocks; i++) {
-        real_return += solution_blend.stock_proportions[i] * final_returns[i];
+        real_return += solution_blend.stock_proportions[i] * final_returns[i] * solution_blend.selected_stocks[i];
+        sum += solution_blend.stock_proportions[i] * solution_blend.selected_stocks[i];
     }
     cout << "retorno blend crossover: "<< real_return << '\n';
+    cout << sum << '\n';
 
     double standard_return = 0;
     for(int i = 0; i < num_stocks; i++) {
