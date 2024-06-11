@@ -7,7 +7,6 @@
 
 using namespace std;
 
-const int NUM_STOCKS = 100;
 const double ALPHA = 0.2;
 
 /**
@@ -427,8 +426,8 @@ class GeneticAlgorithm {
                         double lower_bound = min(parent1.stock_proportions[stock], parent2.stock_proportions[stock]);
                         double upper_bound = max(parent1.stock_proportions[stock], parent2.stock_proportions[stock]);
                         uniform_real_distribution<> d(lower_bound, upper_bound);
-                        value1 = d(generator);
-                        value2 = d(generator);
+                        double value1 = d(generator);
+                        double value2 = d(generator);
                         if(value1 > 0) parent1.selected_stocks[stock] = 1;
                         if(value2 > 0) parent2.selected_stocks[stock] = 1;
                         parent1.stock_proportions[stock] = value1;
@@ -442,8 +441,8 @@ class GeneticAlgorithm {
                         double lower_bound = min(parent1.stock_proportions[stock], parent2.stock_proportions[stock]) - blend_interval_size;
                         double upper_bound = max(parent1.stock_proportions[stock], parent2.stock_proportions[stock]) + blend_interval_size;
                         uniform_real_distribution<> d(lower_bound, upper_bound);
-                        value1 = d(generator);
-                        value2 = d(generator);
+                        double value1 = d(generator);
+                        double value2 = d(generator);
                         if(value1 > 0) parent1.selected_stocks[stock] = 1;
                         if(value2 > 0) parent2.selected_stocks[stock] = 1;
                         parent1.stock_proportions[stock] = value1;
@@ -459,7 +458,8 @@ class GeneticAlgorithm {
             }
 
             // Implementar outros crossovers
-            
+            // Implementados flat crossover e blend crossover
+
             return new_population;
 
         }
@@ -522,14 +522,17 @@ class GeneticAlgorithm {
 
 int main() {
 
-    vector<double> expected_returns;
-    vector<vector<double>> cov_matrix(100, vector<double>(100, 0));
+    int num_stocks;
+    cin >> num_stocks;
+
+    vector<double> expected_returns, final_returns;
+    vector<vector<double>> cov_matrix(num_stocks, vector<double>(num_stocks, 0));
 
     //montar expected_returns e cov_matrix com valores reais
     //para testes, usei valores aleatórios mesmo
 
     //random number generator between 0 and 1
-    mt19937 generator(random_device{}());
+    /*mt19937 generator(random_device{}());
     uniform_real_distribution<double> distribution(0.0, 1.0);
 
     for (int i = 0; i < NUM_STOCKS; i++) {
@@ -540,6 +543,24 @@ int main() {
 
     for (int i = 0; i < NUM_STOCKS; i++) {
         expected_returns.push_back(distribution(generator));
+    }*/
+
+    for(int i = 0; i < num_stocks; i++) {
+        double cur;
+        cin >> cur;
+        expected_returns.push_back(cur);
+    }
+    for(int i = 0; i < num_stocks; i++) {
+        double cur;
+        cin >> cur;
+        final_returns.push_back(cur);
+    }
+    for(int i = 0; i < num_stocks; i++) {
+        for(int j = 0; j < num_stocks; j++) {
+            double cur;
+            cin >> cur;
+            cov_matrix[i][j] = cur;
+        }
     }
 
     /**
@@ -564,15 +585,77 @@ int main() {
         20,
         3,
         20,
-        NuM_STOCKS,
+        num_stocks,
         0.5,
         0.05,
         0.5,
         expected_returns,
-        cov_matrix
+        cov_matrix,
+        "uniform"
     );
 
 
     Chromosome solution = ga(1000);
 
+    double real_return = 0;
+    for(int i = 0; i < num_stocks; i++) {
+        real_return += solution.stock_proportions[i] * final_returns[i];
+    }
+    cout << "retorno uniform crossover: "<< real_return << '\n';
+    
+    GeneticAlgorithm ga_flat(
+        100,
+        0.005,
+        0.1,
+        20,
+        3,
+        20,
+        num_stocks,
+        0.5,
+        0.05,
+        0.5,
+        expected_returns,
+        cov_matrix,
+        "flat"
+    );
+
+    Chromosome solution_flat = ga_flat(1000);
+
+    real_return = 0;
+    for(int i = 0; i < num_stocks; i++) {
+        real_return += solution_flat.stock_proportions[i] * final_returns[i];
+    }
+    cout << "retorno flat crossover: "<< real_return << '\n';
+
+    GeneticAlgorithm ga_blend(
+        100,
+        0.005,
+        0.1,
+        20,
+        3,
+        20,
+        num_stocks,
+        0.5,
+        0.05,
+        0.5,
+        expected_returns,
+        cov_matrix,
+        "blend"
+    );
+
+
+    Chromosome solution_blend = ga_blend(1000);
+
+    real_return = 0;
+    for(int i = 0; i < num_stocks; i++) {
+        real_return += solution_blend.stock_proportions[i] * final_returns[i];
+    }
+    cout << "retorno blend crossover: "<< real_return << '\n';
+
+    double standard_return = 0;
+    for(int i = 0; i < num_stocks; i++) {
+        standard_return += final_returns[i] / num_stocks;
+    }
+    cout << "retorno com carteira com todas as ações iguais: " << standard_return << '\n';
+    return 0;
 }
