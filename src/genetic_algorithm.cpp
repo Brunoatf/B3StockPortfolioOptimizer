@@ -4,6 +4,7 @@
 #include <numeric>
 #include <random>
 #include <set>
+#include <iomanip>
 
 using namespace std;
 
@@ -135,7 +136,7 @@ class Chromosome {
                         qt++;
                     }
                 }
-                if(qt != portfolio_size) cout << "oi " << qt << '\n';
+                //if(qt != portfolio_size) cout << "oi " << qt << '\n';
             }
             // Se o número de ações selecionadas for menor que o tamanho do portfolio, adicionar as ações de maior proporção que ainda não foram selecionadas:
             // Aqui talvez seja interessante permitir que o algoritmo monte portfólios com menos ações. Vai que o melhor portfólio não tem exatamente o tamanho do portfolio_size
@@ -288,7 +289,8 @@ class GeneticAlgorithm {
             double maximum_stock_proportion,
             vector<double> expected_returns,
             vector<vector<double>> cov_matrix,
-            string crossover_type = "uniform"
+            string crossover_type = "uniform",
+            string selection_type = "tournament"
         ) : population_size(population_size),
             mutation_rate(mutation_rate),
             crossover_rate(crossover_rate),
@@ -301,7 +303,8 @@ class GeneticAlgorithm {
             minimum_stock_proportion(minimum_stock_proportion),
             maximum_stock_proportion(maximum_stock_proportion),
             expected_returns(expected_returns),
-            cov_matrix(cov_matrix)
+            cov_matrix(cov_matrix),
+            selection_type(selection_type)
         {}
 
         /**
@@ -311,7 +314,7 @@ class GeneticAlgorithm {
         Chromosome operator()(int num_generations) {
             vector<Chromosome> population = init_population();
 
-            cout << "Starting iterations" << endl;
+            //cout << "Starting iterations" << endl;
             Chromosome solution = get_best_chromosome(population);
 
             for (int i = 0; i < num_generations; ++i) {
@@ -331,9 +334,9 @@ class GeneticAlgorithm {
                     solution = best_chromosome;
                 }
             
-                if (i % 10 == 0) {
+                /*if (i % 10 == 0) {
                     cout << "Generation " << i << " best chromosome fitness: " << best_chromosome.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient) << endl;
-                }
+                }*/
             
             }
 
@@ -354,6 +357,7 @@ class GeneticAlgorithm {
         vector<double> expected_returns;
         vector<vector<double>> cov_matrix;
         string crossover_type;
+        string selection_type;
 
         /**
         * @brief Inicializa a população de cromossomos.
@@ -438,6 +442,7 @@ class GeneticAlgorithm {
                     for(int stock = 0; stock < num_available_stocks; stock++) {
                         double lower_bound = min(parent1.stock_proportions[stock], parent2.stock_proportions[stock]);
                         double upper_bound = max(parent1.stock_proportions[stock], parent2.stock_proportions[stock]);
+                        lower_bound = max(lower_bound, 0.0);
                         uniform_real_distribution<> d(lower_bound, upper_bound);
                         double value1 = d(generator);
                         double value2 = d(generator);
@@ -453,6 +458,7 @@ class GeneticAlgorithm {
                         double blend_interval_size = ALPHA * abs(parent1.stock_proportions[stock] - parent2.stock_proportions[stock]);
                         double lower_bound = min(parent1.stock_proportions[stock], parent2.stock_proportions[stock]) - blend_interval_size;
                         double upper_bound = max(parent1.stock_proportions[stock], parent2.stock_proportions[stock]) + blend_interval_size;
+                        lower_bound = max(lower_bound, 0.0);
                         uniform_real_distribution<> d(lower_bound, upper_bound);
                         double value1 = d(generator);
                         double value2 = d(generator);
@@ -498,6 +504,10 @@ class GeneticAlgorithm {
             return a.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient) > b.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient);
         }
 
+        static bool compare_func(Chromosome a, Chromosome b, vector<double> &expected_returns, vector<vector<double>> &cov_matrix, double &risk_tolerance_coefficient) {
+            return a.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient) < b.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient);
+        }
+
         /**
         * @brief Seleciona cromossomos da população.
         * @param population Um vetor de cromossomos representando a população.
@@ -505,31 +515,64 @@ class GeneticAlgorithm {
         */
         vector<Chromosome> select_chromosomes(vector<Chromosome>& population) {
 
-            vector<Chromosome> parents;
+            if(selection_type == "tournament") {
+                vector<Chromosome> parents;
 
-            sort(
-                population.begin(),
-                population.end(),
-                [this](Chromosome a, Chromosome b) {
-                    return decreasing_compare_func(a, b, expected_returns, cov_matrix, risk_tolerance_coefficient);
+                sort(
+                    population.begin(),
+                    population.end(),
+                    [this](Chromosome a, Chromosome b) {
+                        return decreasing_compare_func(a, b, expected_returns, cov_matrix, risk_tolerance_coefficient);
+                    }
+                );
+
+                for (int i = 0; i < elitism_count; ++i) {
+                    parents.push_back(population[i]);
                 }
-            );
 
-            for (int i = 0; i < elitism_count; ++i) {
-                parents.push_back(population[i]);
-            }
-
-            for (int i = 0; i < population_size - elitism_count; i++) {
-                shuffle(population.begin() + elitism_count, population.end(), mt19937{ random_device{}() });
-                vector<Chromosome> tournament;
-                for (int i = 0; i < tournament_size; i++) {
-                    tournament.push_back(population[elitism_count + i]);
+                for (int i = 0; i < population_size - elitism_count; i++) {
+                    shuffle(population.begin() + elitism_count, population.end(), mt19937{ random_device{}() });
+                    vector<Chromosome> tournament;
+                    for (int i = 0; i < tournament_size; i++) {
+                        tournament.push_back(population[elitism_count + i]);
+                    }
+                    Chromosome winner = get_best_chromosome(tournament);
+                    parents.push_back(winner);
                 }
-                Chromosome winner = get_best_chromosome(tournament);
-                parents.push_back(winner);
-            }
 
-            return parents;
+                return parents;
+            }
+            else {
+                vector <Chromosome> parents;
+                sort(
+                    population.begin(), 
+                    population.end(),
+                    [this](Chromosome a, Chromosome b) {
+                        return compare_func(a, b, expected_returns, cov_matrix, risk_tolerance_coefficient);
+                    }
+                );
+
+                vector <int> probabilities;
+
+                for(int i = 0; i < population_size; i++) {
+                    probabilities.push_back(i + 1);
+                }
+
+                for(int i = 0; i < population_size; i++) {
+                    random_device rd;
+                    mt19937 gen(rd());
+                    uniform_int_distribution<> distr(0, population_size * (population_size + 1) / 2 - 1);
+                    int rdnum = distr(gen);
+                    int cur = 0;
+                    while(rdnum >= probabilities[cur]) {
+                        rdnum -= probabilities[cur];
+                        cur++;
+                    }
+                    if(cur == population_size) cur--;
+                    parents.push_back(population[cur]);
+                }
+                return parents;
+            }
         }
 };
 
@@ -600,11 +643,12 @@ int main() {
         20,
         num_stocks,
         0.5,
-        0.05,
+        0.02,
         0.5,
         expected_returns,
         cov_matrix,
-        "uniform"
+        "uniform",
+        "tournament"
     );
 
 
@@ -614,7 +658,16 @@ int main() {
     for(int i = 0; i < num_stocks; i++) {
         real_return += solution.stock_proportions[i] * final_returns[i] * solution.selected_stocks[i];
     }
-    cout << "retorno uniform crossover: "<< real_return << '\n';
+    cout << "Uniform\n";
+    for(int i = 0; i < num_stocks; i++) {
+        cout << solution.selected_stocks[i] << ' ';
+    }
+    cout << '\n';
+    for(int i = 0; i < num_stocks; i++) {
+        cout << fixed << setprecision(10) <<solution.stock_proportions[i] << ' ';
+    }
+    cout << '\n';
+    cout << "uniform: "<< real_return << '\n';
     
     GeneticAlgorithm ga_flat(
         100,
@@ -625,11 +678,12 @@ int main() {
         20,
         num_stocks,
         0.5,
-        0.05,
+        0.02,
         0.5,
         expected_returns,
         cov_matrix,
-        "flat"
+        "flat",
+        "tournament"
     );
 
     Chromosome solution_flat = ga_flat(1000);
@@ -640,7 +694,16 @@ int main() {
         real_return += solution_flat.stock_proportions[i] * final_returns[i] * solution_flat.selected_stocks[i];
         sum += solution_flat.stock_proportions[i] * solution_flat.selected_stocks[i];
     }
-    cout << "retorno flat crossover: "<< real_return << '\n';
+    cout << "Flat\n";
+    for(int i = 0; i < num_stocks; i++) {
+        cout << solution_flat.selected_stocks[i] << ' ';
+    }
+    cout << '\n';
+    for(int i = 0; i < num_stocks; i++) {
+        cout << fixed << setprecision(10) << solution_flat.stock_proportions[i] << ' ';
+    }
+    cout << '\n';
+    cout << "flat: "<< real_return << '\n';
     cout << sum << '\n';
 
     GeneticAlgorithm ga_blend(
@@ -652,11 +715,12 @@ int main() {
         20,
         num_stocks,
         0.5,
-        0.05,
+        0.02,
         0.5,
         expected_returns,
         cov_matrix,
-        "blend"
+        "blend",
+        "tournament"
     );
 
 
@@ -668,13 +732,31 @@ int main() {
         real_return += solution_blend.stock_proportions[i] * final_returns[i] * solution_blend.selected_stocks[i];
         sum += solution_blend.stock_proportions[i] * solution_blend.selected_stocks[i];
     }
-    cout << "retorno blend crossover: "<< real_return << '\n';
+    cout << "Blend\n";
+    for(int i = 0; i < num_stocks; i++) {
+        cout << solution_blend.selected_stocks[i] << ' ';
+    }
+    cout << '\n';
+    for(int i = 0; i < num_stocks; i++) {
+        cout << fixed << setprecision(10) << solution_blend.stock_proportions[i] << ' ';
+    }
+    cout << '\n';
+    cout << "blend: "<< real_return << '\n';
     cout << sum << '\n';
 
     double standard_return = 0;
     for(int i = 0; i < num_stocks; i++) {
         standard_return += final_returns[i] / num_stocks;
     }
-    cout << "retorno com carteira com todas as ações iguais: " << standard_return << '\n';
+    cout << "Equal\n";
+    for(int i = 0; i < num_stocks; i++) {
+        cout << 1 << ' ';
+    }
+    cout << '\n';
+    for(int i = 0; i < num_stocks; i++) {
+        cout << fixed << setprecision(10) << 1/num_stocks << ' ';
+    }
+    cout << '\n';
+    cout << "equal: " << standard_return << '\n';
     return 0;
 }
