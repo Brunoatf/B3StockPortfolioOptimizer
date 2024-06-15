@@ -332,6 +332,7 @@ class GeneticAlgorithm {
                 auto best_chromosome = get_best_chromosome(population);
                 if (best_chromosome.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient) > solution.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient)) {
                     solution = best_chromosome;
+                    cout << "Generation " << i << " best chromosome fitness: " << best_chromosome.compute_fitness(expected_returns, cov_matrix, risk_tolerance_coefficient) << endl;
                 }
             
                 /*if (i % 10 == 0) {
@@ -558,7 +559,11 @@ class GeneticAlgorithm {
                     probabilities.push_back(i + 1);
                 }
 
-                for(int i = 0; i < population_size; i++) {
+                for (int i = 0; i < elitism_count; ++i) {
+                    parents.push_back(population[i]);
+                }
+
+                for(int i = 0; i < population_size - elitism_count; i++) {
                     random_device rd;
                     mt19937 gen(rd());
                     uniform_int_distribution<> distr(0, population_size * (population_size + 1) / 2 - 1);
@@ -634,120 +639,228 @@ int main() {
     * @param expected_returns Vetor de inteiros com os retornos esperados de cada ação.
     * @param cov_matrix Matriz de covariância dos retornos das ações.
     */
-    GeneticAlgorithm ga(
-        100,
-        0.005,
-        0.1,
-        20,
-        3,
-        20,
-        num_stocks,
-        0.5,
-        0.02,
-        0.5,
-        expected_returns,
-        cov_matrix,
-        "uniform",
-        "tournament"
-    );
+    for(int i = 0; i < 50; i++) {
+        GeneticAlgorithm ga(
+            100,
+            0.005,
+            0.1,
+            20,
+            3,
+            20,
+            num_stocks,
+            0.5,
+            0.02,
+            0.5,
+            expected_returns,
+            cov_matrix,
+            "uniform",
+            "tournament"
+        );
 
 
-    Chromosome solution = ga(1000);
+        Chromosome solution = ga(1000);
 
-    double real_return = 0;
-    for(int i = 0; i < num_stocks; i++) {
-        real_return += solution.stock_proportions[i] * final_returns[i] * solution.selected_stocks[i];
+        double real_return = 0;
+        for(int i = 0; i < num_stocks; i++) {
+            real_return += solution.stock_proportions[i] * final_returns[i] * solution.selected_stocks[i];
+        }
+        cout << "Uniform\n";
+        for(int i = 0; i < num_stocks; i++) {
+            cout << solution.selected_stocks[i] << ' ';
+        }
+        cout << '\n';
+        for(int i = 0; i < num_stocks; i++) {
+            cout << fixed << setprecision(10) <<solution.stock_proportions[i] << ' ';
+        }
+        cout << '\n';
+        cout << "uniform tournament: "<< real_return << '\n';
     }
-    cout << "Uniform\n";
-    for(int i = 0; i < num_stocks; i++) {
-        cout << solution.selected_stocks[i] << ' ';
-    }
-    cout << '\n';
-    for(int i = 0; i < num_stocks; i++) {
-        cout << fixed << setprecision(10) <<solution.stock_proportions[i] << ' ';
-    }
-    cout << '\n';
-    cout << "uniform: "<< real_return << '\n';
-    
-    GeneticAlgorithm ga_flat(
-        100,
-        0.005,
-        0.1,
-        20,
-        3,
-        20,
-        num_stocks,
-        0.5,
-        0.02,
-        0.5,
-        expected_returns,
-        cov_matrix,
-        "flat",
-        "tournament"
-    );
+    for(int i = 0; i < 50; i++) {
+        GeneticAlgorithm ga_flat(
+            100,
+            0.005,
+            0.1,
+            20,
+            3,
+            20,
+            num_stocks,
+            0.5,
+            0.02,
+            0.5,
+            expected_returns,
+            cov_matrix,
+            "flat",
+            "tournament"
+        );
 
-    Chromosome solution_flat = ga_flat(1000);
+        Chromosome solution_flat = ga_flat(1000);
 
-    double sum = 0;
-    real_return = 0;
-    for(int i = 0; i < num_stocks; i++) {
-        real_return += solution_flat.stock_proportions[i] * final_returns[i] * solution_flat.selected_stocks[i];
-        sum += solution_flat.stock_proportions[i] * solution_flat.selected_stocks[i];
+        double real_return = 0;
+        for(int i = 0; i < num_stocks; i++) {
+            real_return += solution_flat.stock_proportions[i] * final_returns[i] * solution_flat.selected_stocks[i];
+        }
+        cout << "Flat\n";
+        for(int i = 0; i < num_stocks; i++) {
+            cout << solution_flat.selected_stocks[i] << ' ';
+        }
+        cout << '\n';
+        for(int i = 0; i < num_stocks; i++) {
+            cout << fixed << setprecision(10) << solution_flat.stock_proportions[i] << ' ';
+        }
+        cout << '\n';
+        cout << "flat tournament: "<< real_return << '\n';
     }
-    cout << "Flat\n";
-    for(int i = 0; i < num_stocks; i++) {
-        cout << solution_flat.selected_stocks[i] << ' ';
-    }
-    cout << '\n';
-    for(int i = 0; i < num_stocks; i++) {
-        cout << fixed << setprecision(10) << solution_flat.stock_proportions[i] << ' ';
-    }
-    cout << '\n';
-    cout << "flat: "<< real_return << '\n';
-    cout << sum << '\n';
-
-    GeneticAlgorithm ga_blend(
-        100,
-        0.005,
-        0.1,
-        20,
-        3,
-        20,
-        num_stocks,
-        0.5,
-        0.02,
-        0.5,
-        expected_returns,
-        cov_matrix,
-        "blend",
-        "tournament"
-    );
+    for(int i = 0; i < 50; i++) {
+        GeneticAlgorithm ga_blend(
+            100,
+            0.005,
+            0.1,
+            20,
+            3,
+            20,
+            num_stocks,
+            0.5,
+            0.02,
+            0.5,
+            expected_returns,
+            cov_matrix,
+            "blend",
+            "tournament"
+        );
 
 
-    Chromosome solution_blend = ga_blend(1000);
+        Chromosome solution_blend = ga_blend(1000);
 
-    sum = 0;
-    real_return = 0;
-    for(int i = 0; i < num_stocks; i++) {
-        real_return += solution_blend.stock_proportions[i] * final_returns[i] * solution_blend.selected_stocks[i];
-        sum += solution_blend.stock_proportions[i] * solution_blend.selected_stocks[i];
+        double real_return = 0;
+        for(int i = 0; i < num_stocks; i++) {
+            real_return += solution_blend.stock_proportions[i] * final_returns[i] * solution_blend.selected_stocks[i];
+        }
+        cout << "Blend\n";
+        for(int i = 0; i < num_stocks; i++) {
+            cout << solution_blend.selected_stocks[i] << ' ';
+        }
+        cout << '\n';
+        for(int i = 0; i < num_stocks; i++) {
+            cout << fixed << setprecision(10) << solution_blend.stock_proportions[i] << ' ';
+        }
+        cout << '\n';
+        cout << "blend tournament: "<< real_return << '\n';
     }
-    cout << "Blend\n";
-    for(int i = 0; i < num_stocks; i++) {
-        cout << solution_blend.selected_stocks[i] << ' ';
+
+    for(int i = 0; i < 50; i++) {
+        GeneticAlgorithm ga(
+            100,
+            0.005,
+            0.1,
+            20,
+            3,
+            20,
+            num_stocks,
+            0.5,
+            0.02,
+            0.5,
+            expected_returns,
+            cov_matrix,
+            "uniform",
+            "ranking"
+        );
+
+
+        Chromosome solution = ga(1000);
+
+        double real_return = 0;
+        for(int i = 0; i < num_stocks; i++) {
+            real_return += solution.stock_proportions[i] * final_returns[i] * solution.selected_stocks[i];
+        }
+        cout << "Uniform\n";
+        for(int i = 0; i < num_stocks; i++) {
+            cout << solution.selected_stocks[i] << ' ';
+        }
+        cout << '\n';
+        for(int i = 0; i < num_stocks; i++) {
+            cout << fixed << setprecision(10) <<solution.stock_proportions[i] << ' ';
+        }
+        cout << '\n';
+        cout << "uniform ranking: "<< real_return << '\n';
     }
-    cout << '\n';
-    for(int i = 0; i < num_stocks; i++) {
-        cout << fixed << setprecision(10) << solution_blend.stock_proportions[i] << ' ';
+    for(int i = 0; i < 50; i++) {
+        GeneticAlgorithm ga_flat(
+            100,
+            0.005,
+            0.1,
+            20,
+            3,
+            20,
+            num_stocks,
+            0.5,
+            0.02,
+            0.5,
+            expected_returns,
+            cov_matrix,
+            "flat",
+            "ranking"
+        );
+
+        Chromosome solution_flat = ga_flat(1000);
+
+        double real_return = 0;
+        for(int i = 0; i < num_stocks; i++) {
+            real_return += solution_flat.stock_proportions[i] * final_returns[i] * solution_flat.selected_stocks[i];
+        }
+        cout << "Flat\n";
+        for(int i = 0; i < num_stocks; i++) {
+            cout << solution_flat.selected_stocks[i] << ' ';
+        }
+        cout << '\n';
+        for(int i = 0; i < num_stocks; i++) {
+            cout << fixed << setprecision(10) << solution_flat.stock_proportions[i] << ' ';
+        }
+        cout << '\n';
+        cout << "flat ranking: "<< real_return << '\n';
     }
-    cout << '\n';
-    cout << "blend: "<< real_return << '\n';
-    cout << sum << '\n';
+    for(int i = 0; i < 50; i++) {
+        GeneticAlgorithm ga_blend(
+            100,
+            0.005,
+            0.1,
+            20,
+            3,
+            20,
+            num_stocks,
+            0.5,
+            0.02,
+            0.5,
+            expected_returns,
+            cov_matrix,
+            "blend",
+            "ranking"
+        );
+
+
+        Chromosome solution_blend = ga_blend(1000);
+
+        double real_return = 0;
+        for(int i = 0; i < num_stocks; i++) {
+            real_return += solution_blend.stock_proportions[i] * final_returns[i] * solution_blend.selected_stocks[i];
+        }
+        cout << "Blend\n";
+        for(int i = 0; i < num_stocks; i++) {
+            cout << solution_blend.selected_stocks[i] << ' ';
+        }
+        cout << '\n';
+        for(int i = 0; i < num_stocks; i++) {
+            cout << fixed << setprecision(10) << solution_blend.stock_proportions[i] << ' ';
+        }
+        cout << '\n';
+        cout << "blend ranking: "<< real_return << '\n';
+    }
 
     double standard_return = 0;
     for(int i = 0; i < num_stocks; i++) {
         standard_return += final_returns[i] / num_stocks;
     }
+
+
     cout << "Equal\n";
     for(int i = 0; i < num_stocks; i++) {
         cout << 1 << ' ';
